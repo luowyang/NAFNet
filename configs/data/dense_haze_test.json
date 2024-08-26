@@ -1,0 +1,26 @@
+[
+    {
+        "lq": "data/All_in_one/Image_Dehazing/Dense-Haze/hazy/40_hazy.png",
+        "hq": "data/All_in_one/Image_Dehazing/Dense-Haze/GT/40_GT.png"
+    },
+    {
+        "lq": "data/All_in_one/Image_Dehazing/Dense-Haze/hazy/21_hazy.png",
+        "hq": "data/All_in_one/Image_Dehazing/Dense-Haze/GT/21_GT.png"
+    },
+    {
+        "lq": "data/All_in_one/Image_Dehazing/Dense-Haze/hazy/55_hazy.png",
+        "hq": "data/All_in_one/Image_Dehazing/Dense-Haze/GT/55_GT.png"
+    },
+    {
+        "lq": "data/All_in_one/Image_Dehazing/Dense-Haze/hazy/29_hazy.png",
+        "hq": "data/All_in_one/Image_Dehazing/Dense-Haze/GT/29_GT.png"
+    },
+    {
+        "lq": "data/All_in_one/Image_Dehazing/Dense-Haze/hazy/45_hazy.png",
+        "hq": "data/All_in_one/Image_Dehazing/Dense-Haze/GT/45_GT.png"
+    },
+    {
+        "lq": "data/All_in_one/Image_Dehazing/Dense-Haze/hazy/25_hazy.png",
+        "hq": "data/All_in_one/Image_Dehazing/Dense-Haze/GT/25_GT.png"
+    }
+]

@@ -1,0 +1,16 @@
+{
+    "GOPRO":["data/All_in_one/Motion_deblurring/GOPRO", 0],
+    "DPDD":["data/All_in_one/Defocus_deblurring/dd_dp_dataset_png",0],
+    "DENSE-HAZE":["data/All_in_one/Image_Dehazing/Dense-Haze",1],
+    "NH-HAZE":["data/All_in_one/Image_Dehazing/NH-HAZE",1],
+    "SOTS":["data/All_in_one/Image_Dehazing/SOTS",1],
+    "OUTDOOR-RAIN":["data/All_in_one/Image_Deraining/Outdoor-Rain/train",1],
+    "RAIN1400":["data/All_in_one/Image_Deraining/Rain1400",0],
+    "LHP":["data/All_in_one/Image_Deraining/LHP",2],
+    "REALSNOW":["data/All_in_one/Image_Desnowing/RealSnow",0],
+    "SNOW100K":["data/All_in_one/Image_Desnowing/Snow100K",0],
+    "LOL-V2":["data/All_in_one/Low_light_enhancement/LOL-v2",0],
+    "RAINDROP":["data/All_in_one/Raindrop_Removal/RainDrop",0],
+    "RAINDS":["data/All_in_one/Raindrop_Removal/RainDS",0],
+    "SIDD":["data/All_in_one/Real_denoising/SIDD_Medium_Srgb",1]
+}

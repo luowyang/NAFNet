@@ -2,9 +2,9 @@
 experiments
 logs/
 *results*
-datasets
+/datasets
 *outputs*
-data
+/data
 
 #=============== Project Related ==================#
 .vscode/

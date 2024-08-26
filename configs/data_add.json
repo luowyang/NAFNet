@@ -1,0 +1,8 @@
+{
+    "Rain100H":["data/All_in_one/Image_Deraining/Rain100H", 0],
+    "Rain100L":["data/All_in_one/Image_Deraining/Rain100L",0],
+    "RESIDE-ITS":["data/All_in_one/Image_Dehazing/RESIDE-ITS",1],
+    "RealBlur":["data/All_in_one/Motion_deblurring/RealBlur",0],
+    "WED":["data/All_in_one/Gaussian_denoising/Waterloo",1],
+    "WEDBLUR":["data/All_in_one/Motion_deblurring/Waterloo",1]
+}
