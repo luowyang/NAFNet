@@ -405,5 +405,8 @@ class AIOModel(BaseModel):
         return out_dict
 
     def save(self, epoch, current_iter):
-        self.save_network(self.net_g, 'net_g', current_iter)
-        self.save_training_state(epoch, current_iter)
+        try:
+            self.save_network(self.net_g, 'net_g', current_iter)
+            self.save_training_state(epoch, current_iter)
+        except BaseException as e:
+            print(f'Error saving checkpoint at {epoch=}, {current_iter=}: {e}')

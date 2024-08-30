@@ -12,6 +12,7 @@ import random
 import time
 import torch
 from os import path as osp
+from tqdm import tqdm
 
 from basicsr.data import create_dataloader, create_dataset
 from basicsr.data.data_sampler import EnlargedSampler
@@ -144,6 +145,9 @@ def create_train_val_dataloader(opt, logger):
 
 
 def main():
+    import os
+    rank = int(os.environ["RANK"])
+    
     # parse options, set distributed setting, set ramdom seed
     opt = parse_options(is_train=True)
 
@@ -231,6 +235,7 @@ def main():
         prefetcher.reset()
         train_data = prefetcher.next()
 
+        pbar = tqdm(range(len(train_loader)), desc=f'Epoch[{epoch}/{total_epochs}]', disable=(rank != 0))
         while train_data is not None:
             data_time = time.time() - data_time
 
@@ -274,10 +279,10 @@ def main():
                 log_vars.update(model.get_current_log())
                 msg_logger(log_vars)
 
-
             data_time = time.time()
             iter_time = time.time()
             train_data = prefetcher.next()
+            pbar.update(1)
         # end of iter
         epoch += 1
 

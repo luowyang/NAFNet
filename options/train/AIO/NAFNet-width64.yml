@@ -12,8 +12,8 @@ num_gpu: 8
 manual_seed: &seed 2221101
 
 args:
-  # data: configs/data_all_v2.1.json
-  data: configs/data_gopro.nongamma.json
+  data: configs/data_all_v2.1.json
+  # data: configs/data_gopro.nongamma.json
   balance_data: by_dataset
   train_batch_size: 8
   # test_batch_size: 8
@@ -84,7 +84,7 @@ train:
 
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: &TOTAL_ITER 4000000
+    T_max: &TOTAL_ITER 400_000
     eta_min: !!float 1e-7
 
   total_iter: *TOTAL_ITER
@@ -98,7 +98,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 10  # originally 2e4
+  val_freq: !!float 1  # originally 2e4
   save_img: false
 
 
@@ -115,7 +115,7 @@ val:
 # logging settings
 logger:
   print_freq: 200
-  save_checkpoint_freq: !!float 10
+  save_checkpoint_freq: !!float 1
   use_tb_logger: true
   wandb:
     project: ~
