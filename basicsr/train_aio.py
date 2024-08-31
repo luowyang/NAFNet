@@ -429,8 +429,7 @@ def main():
         msg_logger(log_vars)
         
         # validation
-        if opt.get('val') is not None and (epoch % opt['val']['val_freq'] == 0 or epoch in {5 , 10}):
-        # if opt.get('val') is not None and (current_iter % opt['val']['val_freq'] == 0):
+        if opt.get('val') is not None and (epoch + 1) % opt['val']['val_freq'] == 0:
             rgb2bgr = opt['val'].get('rgb2bgr', True)
             # wheather use uint8 image to compute metrics
             use_image = opt['val'].get('use_image', True)

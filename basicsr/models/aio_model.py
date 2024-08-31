@@ -352,9 +352,7 @@ class AIOModel(BaseModel):
 
             except BaseException:
                 raise RuntimeError(f'Exception during processing {lq_path}')
-            
-        if rank == 0:
-            pbar.close()
+
         torch.cuda.empty_cache()
 
         # dataset => subset => metric_name => [[per_sample_metric_values] for ranks]
