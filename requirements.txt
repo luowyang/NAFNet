@@ -2,12 +2,12 @@ addict
 future
 lmdb
 numpy
-opencv-python
+opencv-python-headless
 Pillow
 pyyaml
 requests
 scikit-image
 scipy
-tb-nightly
+tb-nightly  # pip install tb-nightly -i https://mirrors.aliyun.com/pypi/simple
 tqdm
 yapf

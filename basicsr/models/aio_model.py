@@ -12,15 +12,17 @@ import torch
 import torch.distributed
 from collections import OrderedDict
 from copy import deepcopy
+import os
 from os import path as osp
+from PIL import Image
 from tqdm import tqdm
 from prettytable import PrettyTable
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
-from basicsr.utils import get_root_logger, imwrite, tensor2img
+from basicsr.utils import get_root_logger, tensor2img
 from basicsr.utils.dist_util import get_dist_info
-from basicsr.utils.toolkit import AverageMeter, compute_psnr_ssim, gather_together
+from basicsr.utils.toolkit import AverageMeter, compute_psnr_ssim, gather_together, image_grid
 
 loss_module = importlib.import_module('basicsr.models.losses')
 metric_module = importlib.import_module('basicsr.metrics')
@@ -113,6 +115,7 @@ class AIOModel(BaseModel):
             self.gt = data['gt'].to(self.device)
 
     def grids(self):
+        raise AssertionError
         b, c, h, w = self.gt.size()
         self.original_size = (b, c, h, w)
 
@@ -167,6 +170,7 @@ class AIOModel(BaseModel):
         self.idxes = idxes
 
     def grids_inverse(self):
+        raise AssertionError
         preds = torch.zeros(self.original_size)
         b, c, h, w = self.original_size
 
@@ -261,7 +265,6 @@ class AIOModel(BaseModel):
         self.net_g.train()
 
     def dist_validation(self, dataloader, current_iter, tb_logger, save_img, rgb2bgr, use_image):
-        dataset_name = dataloader.dataset.opt['name']
         with_metrics = self.opt['val'].get('metrics') is not None
         if with_metrics:
             ssim_loss = AverageMeter('ssim', ':.4f')
@@ -273,6 +276,7 @@ class AIOModel(BaseModel):
             pbar = tqdm(total=len(dataloader), unit='image')
 
         cnt = 0
+        saved_counter = defaultdict(int)
 
         for idx, val_data in enumerate(dataloader):
             if idx % world_size != rank:
@@ -285,63 +289,61 @@ class AIOModel(BaseModel):
                 if self.opt['val'].get('grids', False):
                     self.grids()
 
+                # get_root_logger().info(f'LQ input: {lq_path}: {self.lq}')
                 self.test()
-
+                
                 if self.opt['val'].get('grids', False):
                     self.grids_inverse()
 
                 visuals = self.get_current_visuals()
                 sr_img = tensor2img([visuals['result']], rgb2bgr=rgb2bgr)
+                # get_root_logger().info(f'LQ postprocessed: {lq_path}: {sr_img}')
                 if 'gt' in visuals:
                     gt_img = tensor2img([visuals['gt']], rgb2bgr=rgb2bgr)
                     del self.gt
+                else:
+                    raise AssertionError
 
                 # tentative for out of GPU memory
                 del self.lq
                 del self.output
                 torch.cuda.empty_cache()
 
-                if save_img:
-                    if sr_img.shape[2] == 6:
-                        L_img = sr_img[:, :, :3]
-                        R_img = sr_img[:, :, 3:]
-
-                        # visual_dir = osp.join('visual_results', dataset_name, self.opt['name'])
-                        visual_dir = osp.join(self.opt['path']['visualization'], dataset_name)
-
-                        imwrite(L_img, osp.join(visual_dir, f'{img_name}_L.png'))
-                        imwrite(R_img, osp.join(visual_dir, f'{img_name}_R.png'))
-                    else:
-                        if self.opt['is_train']:
-
-                            save_img_path = osp.join(self.opt['path']['visualization'],
-                                                    img_name,
-                                                    f'{img_name}_{current_iter}.png')
-
-                            save_gt_img_path = osp.join(self.opt['path']['visualization'],
-                                                    img_name,
-                                                    f'{img_name}_{current_iter}_gt.png')
-                        else:
-                            save_img_path = osp.join(
-                                self.opt['path']['visualization'], dataset_name,
-                                f'{img_name}.png')
-                            save_gt_img_path = osp.join(
-                                self.opt['path']['visualization'], dataset_name,
-                                f'{img_name}_gt.png')
-
-                        imwrite(sr_img, save_img_path)
-                        imwrite(gt_img, save_gt_img_path)
-
+                task = val_data['task'][0]
+                dataset = val_data['dataset'][0]
+                subset = val_data['subset'][0]
+                
                 if with_metrics:
                     # calculate metrics
                     psnr, ssim = compute_psnr_ssim(sr_img, gt_img)
                     psnr_loss.update(psnr)
                     ssim_loss.update(ssim)
-                    dataset = val_data['dataset'][0]
-                    subset = val_data['subset'][0]
                     eval_res[dataset].setdefault(subset, {'SSIM': [], 'PSNR': []})
                     eval_res[dataset][subset]['SSIM'].append(ssim)
                     eval_res[dataset][subset]['PSNR'].append(psnr)
+                
+                if isinstance(save_img, str):
+                    save_type = (task, dataset, subset)
+                    if saved_counter[save_type] < 10:
+                        # `os.path.join()` ignores ''
+                        save_path = osp.join(save_img, task, dataset, subset)
+                        os.makedirs(save_path, exist_ok=True)
+                        save_index = world_size * saved_counter[save_type] + rank
+                        # NOTE: JPEG saves space, but may affect quality
+                        lq_stem = os.path.splitext(os.path.basename(lq_path))[0]
+                        save_path = os.path.join(save_path, f"Img{save_index}_{lq_stem}" + "_LQ-Pred-HQ-Diff.jpg")
+                        try:
+                            diff = (np.asarray(gt_img) - np.asarray(sr_img) + 255) / 2
+                            diff = Image.fromarray(diff.clip(0, 255).astype(np.uint8))
+                            lq_img = val_data['lq_image'][0]
+                            images = [lq_img, Image.fromarray(sr_img), Image.fromarray(gt_img), diff]
+                            image_grid(images, strict=False, resize=False).save(save_path)
+                            saved_counter[save_type] += 1
+                        except OSError as e:
+                            logger = get_root_logger()
+                            logger.exception(f"error saving image {save_path}: {e}")
+                elif isinstance(save_img, bool):
+                    raise NotImplementedError
 
                 cnt += 1
                 if rank == 0:
@@ -350,8 +352,8 @@ class AIOModel(BaseModel):
                         pbar.set_description(f'Test {img_name}')
                         pbar.set_postfix(SSIM=ssim_loss.format_values(), PSNR=psnr_loss.format_values())
 
-            except BaseException:
-                raise RuntimeError(f'Exception during processing {lq_path}')
+            except BaseException as e:
+                raise RuntimeError(f'Exception during processing {lq_path}') from e
 
         torch.cuda.empty_cache()
 
@@ -400,6 +402,8 @@ class AIOModel(BaseModel):
         out_dict['result'] = self.output.detach().cpu()
         if hasattr(self, 'gt'):
             out_dict['gt'] = self.gt.detach().cpu()
+        else:
+            raise AssertionError
         return out_dict
 
     def save(self, epoch, current_iter):

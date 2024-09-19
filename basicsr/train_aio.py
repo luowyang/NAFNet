@@ -21,6 +21,8 @@ from types import SimpleNamespace
 from os import path as osp
 import os
 import json
+from PIL import Image
+import numpy as np
 
 from basicsr.data import create_dataloader, create_dataset
 from basicsr.data.data_sampler import EnlargedSampler
@@ -294,6 +296,34 @@ def create_train_val_dataloader_aio(opt, logger: logging.Logger):
     return train_loader, train_loader.sampler, val_loader, total_epochs, total_iters
 
 
+def tensor_to_image(tensor: torch.Tensor, denormalize: bool) -> Image.Image:
+    img_float: np.ndarray = tensor.to(dtype=torch.float32).cpu().numpy().transpose(1, 2, 0)
+    if denormalize:
+        img_float = (img_float + 1) / 2  # [0, 1]
+    img_uint8 = (img_float * 255).clip(0, 255).astype(np.uint8)
+    img = Image.fromarray(img_uint8)
+    return img
+
+
+@torch.no_grad()
+def save_batch(root: str, batch: dict, denormalize: bool = True):
+    batch_size = len(batch["hq_image"])
+    for i in range(batch_size):
+        lq_path = batch["lq_path"][i]
+        save_path = os.path.join(root, lq_path)
+        os.makedirs(save_path, exist_ok=True)
+
+        batch["hq_image"][i].save(os.path.join(save_path, "hq_image.png"))
+        batch["lq_image"][i].save(os.path.join(save_path, "lq_image.png"))
+
+        if "gt" in batch:
+            torch.save(batch["gt"][i], os.path.join(save_path, "hq_tensor.pt"))
+            tensor_to_image(batch["gt"][i], denormalize).save(os.path.join(save_path, "hq_tensor.png"))
+        if "lq" in batch:
+            torch.save(batch["lq"][i], os.path.join(save_path, "lq_tensor.pt"))
+            tensor_to_image(batch["lq"][i], denormalize).save(os.path.join(save_path, "lq_tensor.png"))
+
+
 def main():
     # Get distributed training config
     import os
@@ -401,6 +431,7 @@ def main():
             model.update_learning_rate(
                 current_iter, warmup_iter=opt['train'].get('warmup_iter', -1))
             # training
+            # save_batch(f'experiments/{opt["name"]}/debug/train/epoch{epoch:04d}/step{current_iter:06d}', train_data, denormalize=False)
             model.feed_data(train_data, is_val=False)
             model.optimize_parameters(current_iter, tb_logger)
             # if result_code == -1 and tb_logger:
@@ -420,21 +451,22 @@ def main():
             model.save(epoch, current_iter)
         
         # log
-        # if current_iter % opt['logger']['print_freq'] == 0:
-        log_vars = {'epoch': epoch, 'iter': current_iter, 'total_iter': total_iters}
-        log_vars.update({'lrs': model.get_current_learning_rate()})
-        log_vars.update({'time': iter_time, 'data_time': data_time})
-        log_vars.update(model.get_current_log())
-        # print('msg logger .. ', current_iter)
-        msg_logger(log_vars)
+        if current_iter % opt['logger']['print_freq'] == 0:
+            log_vars = {'epoch': epoch, 'iter': current_iter, 'total_iter': total_iters}
+            log_vars.update({'lrs': model.get_current_learning_rate()})
+            log_vars.update({'time': iter_time, 'data_time': data_time})
+            log_vars.update(model.get_current_log())
+            # print('msg logger .. ', current_iter)
+            msg_logger(log_vars)
         
         # validation
         if opt.get('val') is not None and (epoch + 1) % opt['val']['val_freq'] == 0:
-            rgb2bgr = opt['val'].get('rgb2bgr', True)
+            rgb2bgr = opt['val'].get('rgb2bgr', False)
             # wheather use uint8 image to compute metrics
             use_image = opt['val'].get('use_image', True)
+            visualizaion_dir = f"{opt['path']['visualization']}/Epoch{epoch:04d}/"
             model.validation(val_loader, current_iter, tb_logger,
-                                opt['val']['save_img'], rgb2bgr, use_image )
+                             visualizaion_dir, rgb2bgr, use_image )
             log_vars = {'epoch': epoch, 'iter': current_iter, 'total_iter': total_iters}
             log_vars.update({'lrs': model.get_current_learning_rate()})
             log_vars.update(model.get_current_log())
@@ -450,10 +482,11 @@ def main():
     logger.info('Save the latest model.')
     model.save(epoch=-1, current_iter=-1)  # -1 stands for the latest
     if opt.get('val') is not None:
-        rgb2bgr = opt['val'].get('rgb2bgr', True)
+        rgb2bgr = opt['val'].get('rgb2bgr', False)
         use_image = opt['val'].get('use_image', True)
+        visualizaion_dir = f"{opt['path']['visualization']}/Test/"
         model.validation(val_loader, current_iter, tb_logger,
-                         opt['val']['save_img'], rgb2bgr, use_image)
+                         visualizaion_dir, rgb2bgr, use_image)
         # if tb_logger:
         #     print('xxresult! ', opt['name'], ' ', metric)
     if tb_logger:

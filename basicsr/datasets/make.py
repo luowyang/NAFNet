@@ -157,7 +157,7 @@ class TestTransform:
         self,
         crop_size: tuple[int, int] | int,
         overlap: int,
-        resize: bool,  # Do resize or crops.
+        resize: str = 'none',  # resize or crop strategy.
     ):
         assert crop_size is not None
         self.crop_size = to_2tuple(crop_size)
@@ -165,13 +165,15 @@ class TestTransform:
         self.resize = resize
 
     def resize_or_crop(self, img: Image.Image) -> tuple[list[Image.Image], Image.Image]:
-        if self.resize:
-            # img = img.resize(self.crop_size, resample=Image.Resampling.BICUBIC)
+        if self.resize == 'none':
             ratio = max(img.height, img.width) / 1920
             if ratio > 1:
                 img = img.resize((round(img.size[0] / ratio), round(img.size[1] / ratio)), resample=Image.Resampling.BICUBIC)
             crops = [img]  # exactly one crop
-        else:
+        elif self.resize == 'resize':
+            img = img.resize(self.crop_size, resample=Image.Resampling.BICUBIC)
+            crops = [img]  # exactly one crop
+        elif self.resize == 'crop':
             # resize image until short size is no less than `crop_size`
             target_width, target_height = self.crop_size
             width, height = img.size
@@ -180,8 +182,25 @@ class TestTransform:
                 new_size = (math.ceil(resize_ratio * width), math.ceil(resize_ratio * height))
                 img = img.resize(new_size, resample=Image.Resampling.BICUBIC)
             crops = sliding_window_crop(img, self.crop_size, self.overlap)
+        elif self.resize == 'center_crop':
+            # resize image until short size is no less than `crop_size`
+            target_width, target_height = self.crop_size
+            width, height = img.size
+            resize_ratio = max(target_height / height, target_width / width)
+            if resize_ratio > 1:
+                new_size = (math.ceil(resize_ratio * width), math.ceil(resize_ratio * height))
+                img = img.resize(new_size, resample=Image.Resampling.BICUBIC)
+            # Adapted from [Restormer](https://github.com/swz30/Restormer/blob/df766d5521afd21cce56e24159f300b30ebf3fb0/Motion_Deblurring/generate_patches_gopro.py#L58C5-L64C64)
+            width, height = img.size
+            left = (width - target_width)//2
+            upper = (height - target_height)//2
+            img = img.crop([left, upper, left+target_width, upper+target_height])
+            crops = [img]
+        else:
+            raise NotImplementedError(f'Unsupported transform option {self.resize}')
         
         crops = [torch.from_numpy(image_to_numpy_unnormalized(c).transpose(2, 0, 1)) for c in crops]
+        
         return crops, img
 
     def __call__(self, data: dict[str, Image.Image]):
@@ -198,7 +217,7 @@ def make_dataset(
     overlap: int = 0,
     train_resize: bool = False,
     train_flip_rotate: bool = False,
-    test_resize: bool = False,
+    test_resize: str = 'none',
     **kwargs,  # passed to `GIRDataset.__init__`
 ) -> GIRDataset:
     r"""Makes a dataset instance."""
